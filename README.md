@@ -6,7 +6,7 @@ CAsyncWaiter<std::string> stringWaiter;
 waiter.Create<ResultType>("key1",true, 5000);
 
 //线程1设置值值
-waiter.SetValue(strKey, ResultType());
+waiter.SetValue("key1", ResultType());
 
 //线程2等待值
 ResultType stResult;
