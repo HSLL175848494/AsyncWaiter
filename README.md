@@ -10,5 +10,5 @@ waiter.SetValue("key1", ResultType());
 
 //线程2等待值
 ResultType stResult;
-bool bRetWait = waiter.WaitValue("key1", stResult);
+bool bRet = waiter.WaitValue("key1", stResult);
 ```
