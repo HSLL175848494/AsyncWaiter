@@ -2,6 +2,7 @@
 
 #include <map>
 #include <mutex>
+#include <vector>
 #include <thread>
 #include <chrono>
 #include <limits>
@@ -10,10 +11,10 @@
 
 namespace HSLL
 {
-	class CAsyncValueBase
+	class HSAsyncValueBase
 	{
 	public:
-		virtual ~CAsyncValueBase()
+		virtual ~HSAsyncValueBase()
 		{
 			Delete();
 		}
@@ -52,7 +53,7 @@ namespace HSLL
 		}
 
 	protected:
-		CAsyncValueBase(uint32_t uTimeoutMs)
+		HSAsyncValueBase(uint32_t uTimeoutMs)
 		{
 			m_bReady = false;
 			m_bDeleted = false;
@@ -76,14 +77,14 @@ namespace HSLL
 	};
 
 	template<typename Value>
-	class CAsyncValueImpl : public CAsyncValueBase
+	class HSAsyncValueImpl : public HSAsyncValueBase
 	{
 	public:
-		explicit CAsyncValueImpl(uint32_t uTimeoutMs) : CAsyncValueBase(uTimeoutMs)
+		explicit HSAsyncValueImpl(uint32_t uTimeoutMs) : HSAsyncValueBase(uTimeoutMs)
 		{
 		}
 
-		virtual ~CAsyncValueImpl()
+		virtual ~HSAsyncValueImpl()
 		{
 			std::lock_guard<std::mutex> oLock(m_oMutex);
 
@@ -155,10 +156,10 @@ namespace HSLL
 	};
 
 	template<>
-	class CAsyncValueImpl<void> : public CAsyncValueBase
+	class HSAsyncValueImpl<void> : public HSAsyncValueBase
 	{
 	public:
-		explicit CAsyncValueImpl(uint32_t uTimeoutMs) : CAsyncValueBase(uTimeoutMs)
+		explicit HSAsyncValueImpl(uint32_t uTimeoutMs) : HSAsyncValueBase(uTimeoutMs)
 		{
 		}
 
@@ -204,7 +205,7 @@ namespace HSLL
 	};
 
 	/**
-	 * @class CAsyncWaiter
+	 * @class HSAsyncWaiter
 	 * @brief Manages asynchronous events with associated keys and expiration times.
 	 *
 	 * This class provides a thread-safe mechanism to create, set, wait for, and remove
@@ -215,18 +216,18 @@ namespace HSLL
 	 * @tparam Key The type used to uniquely identify asynchronous events.
 	 */
 	template<typename Key>
-	class CAsyncWaiter
+	class HSAsyncWaiter
 	{
 		constexpr static uint32_t MAX_U32 = std::numeric_limits<uint32_t>::max();
 
 	public:
 		/**
-		 * @brief Constructs a CAsyncWaiter instance.
+		 * @brief Constructs a HSAsyncWaiter instance.
 		 *
 		 * The monitor thread is not automatically started. Call Start() to begin
 		 * automatic cleanup of expired events.
 		 */
-		CAsyncWaiter()
+		HSAsyncWaiter()
 		{
 			m_bIsRunning = false;
 			m_uCleanupIntervalMs = 50;
@@ -235,7 +236,7 @@ namespace HSLL
 		/**
 		 * @brief Destructor that stops the monitor thread and cleans up all pending events.
 		 */
-		~CAsyncWaiter()
+		~HSAsyncWaiter()
 		{
 			Stop();
 		}
@@ -266,7 +267,7 @@ namespace HSLL
 
 			m_bIsRunning = true;
 			m_uCleanupIntervalMs = uCleanupIntervalMs;
-			m_oMonitorThread = std::thread(&CAsyncWaiter<Key>::CleanupThread, this);
+			m_oMonitorThread = std::thread(&HSAsyncWaiter<Key>::CleanupThread, this);
 			return true;
 		}
 
@@ -280,7 +281,7 @@ namespace HSLL
 		 */
 		bool Remove(const Key& tKey)
 		{
-			std::shared_ptr<CAsyncValueBase> pEvent;
+			std::shared_ptr<HSAsyncValueBase> pEvent;
 
 			{
 				std::lock_guard<std::recursive_mutex> oLock(m_oMutex);
@@ -331,7 +332,7 @@ namespace HSLL
 				m_mapPendingEvents.erase(oIt);
 			}
 
-			m_mapPendingEvents[tKey] = std::make_shared<CAsyncValueImpl<std::decay_t<V>>>(uExpireMs);
+			m_mapPendingEvents[tKey] = std::make_shared<HSAsyncValueImpl<std::decay_t<V>>>(uExpireMs);
 			return true;
 		}
 
@@ -359,7 +360,7 @@ namespace HSLL
 				m_mapPendingEvents.erase(oIt);
 			}
 
-			m_mapPendingEvents[tKey] = std::make_shared<CAsyncValueImpl<void>>(uExpireMs);
+			m_mapPendingEvents[tKey] = std::make_shared<HSAsyncValueImpl<void>>(uExpireMs);
 			return true;
 		}
 
@@ -375,7 +376,7 @@ namespace HSLL
 		template<typename V>
 		bool SetValue(const Key& tKey, V&& tValue)
 		{
-			std::shared_ptr<CAsyncValueBase> pEvent;
+			std::shared_ptr<HSAsyncValueBase> pEvent;
 
 			{
 				std::lock_guard<std::recursive_mutex> oLock(m_oMutex);
@@ -389,7 +390,7 @@ namespace HSLL
 				pEvent = oIt->second;
 			}
 
-			auto pImpl = std::dynamic_pointer_cast<CAsyncValueImpl<std::decay_t<V>>>(pEvent);
+			auto pImpl = std::dynamic_pointer_cast<HSAsyncValueImpl<std::decay_t<V>>>(pEvent);
 
 			if (!pImpl)
 			{
@@ -408,7 +409,7 @@ namespace HSLL
 		 */
 		bool Set(const Key& tKey)
 		{
-			std::shared_ptr<CAsyncValueBase> pEvent;
+			std::shared_ptr<HSAsyncValueBase> pEvent;
 
 			{
 				std::lock_guard<std::recursive_mutex> oLock(m_oMutex);
@@ -422,7 +423,7 @@ namespace HSLL
 				pEvent = oIt->second;
 			}
 
-			auto pImpl = std::dynamic_pointer_cast<CAsyncValueImpl<void>>(pEvent);
+			auto pImpl = std::dynamic_pointer_cast<HSAsyncValueImpl<void>>(pEvent);
 
 			if (!pImpl)
 			{
@@ -447,7 +448,7 @@ namespace HSLL
 		template<typename V>
 		bool WaitValue(const Key& tKey, V& tValue, bool bRemoveAfterFetch = true, uint32_t uTimeoutMs = MAX_U32)
 		{
-			std::shared_ptr<CAsyncValueBase> pEvent;
+			std::shared_ptr<HSAsyncValueBase> pEvent;
 
 			{
 				std::lock_guard<std::recursive_mutex> oLock(m_oMutex);
@@ -461,7 +462,7 @@ namespace HSLL
 				pEvent = oIt->second;
 			}
 
-			auto pImpl = std::dynamic_pointer_cast<CAsyncValueImpl<std::decay_t<V>>>(pEvent);
+			auto pImpl = std::dynamic_pointer_cast<HSAsyncValueImpl<std::decay_t<V>>>(pEvent);
 
 			if (!pImpl)
 			{
@@ -488,7 +489,7 @@ namespace HSLL
 		 */
 		bool Wait(const Key& tKey, bool bRemoveAfterFetch = true, uint32_t uTimeoutMs = MAX_U32)
 		{
-			std::shared_ptr<CAsyncValueBase> pEvent;
+			std::shared_ptr<HSAsyncValueBase> pEvent;
 
 			{
 				std::lock_guard<std::recursive_mutex> oLock(m_oMutex);
@@ -502,7 +503,7 @@ namespace HSLL
 				pEvent = oIt->second;
 			}
 
-			auto pImpl = std::dynamic_pointer_cast<CAsyncValueImpl<void>>(pEvent);
+			auto pImpl = std::dynamic_pointer_cast<HSAsyncValueImpl<void>>(pEvent);
 
 			if (!pImpl)
 			{
@@ -572,7 +573,7 @@ namespace HSLL
 
 				auto stCurrentTime = std::chrono::steady_clock::now();
 				auto oIt = m_mapPendingEvents.begin();
-				std::vector<std::shared_ptr<CAsyncValueBase>> vecWaitDelete;
+				std::vector<std::shared_ptr<HSAsyncValueBase>> vecWaitDelete;
 
 				while (oIt != m_mapPendingEvents.end())
 				{
@@ -605,6 +606,6 @@ namespace HSLL
 		 * The key identifies the event, and the value is a base pointer to the
 		 * event implementation.
 		 */
-		std::map<Key, std::shared_ptr<CAsyncValueBase>> m_mapPendingEvents;
+		std::map<Key, std::shared_ptr<HSAsyncValueBase>> m_mapPendingEvents;
 	};
 }
